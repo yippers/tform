@@ -1,0 +1,24 @@
+{
+  "extends": ["tslint:latest"],
+  "rules": {
+    "file-header": [true, "Copyright \\(C\\) 20\\d{2} Rimeto, LLC. All Rights Reserved."],
+    "indent": [true, "spaces", 2],
+    "max-line-length": false,
+    "no-consecutive-blank-lines": [true, 2],
+    "ordered-imports": [
+      true,
+      {
+        "import-sources-order": "any",
+        "named-imports-order": "case-insensitive"
+      }
+    ],
+    "quotemark": [true, "single", "avoid-escape"],
+    "variable-name": [
+      true,
+      "ban-keywords",
+      "check-format",
+      "allow-leading-underscore",
+      "allow-pascal-case"
+    ]
+  }
+}
