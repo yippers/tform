@@ -94,4 +94,24 @@ describe('tform', () => {
       },
     },
   );
+
+  testTform(
+    'deep remapping',
+    {
+      hometown: 'San Francisco',
+      country: 'United States',
+    },
+    {
+      address: {
+        city: 'hometown',
+        country: 'country',
+      },
+    },
+    {
+      address: {
+        city: 'San Francisco',
+        country: 'United States',
+      },
+    },
+  );
 });

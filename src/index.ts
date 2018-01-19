@@ -1,6 +1,7 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
 import * as _ from 'lodash';
+import mapDeep = require('map-keys-deep-lodash');
 
 // Define JSON interface.
 
@@ -39,14 +40,12 @@ function getterFactory(record: IJSONRecord): Getter {
 
 // Expose main functionality.
 
-// tslint:disable-next-line:max-classes-per-file
 export default class Tform {
   public static transform(rules: IRules, record: IJSONRecord): IJSONRecord {
     const getter: Getter = getterFactory(record);
     const results: IJSONRecord = {};
 
-    const mappedRules = new Map(_.toPairs(rules));
-    mappedRules.forEach((value, key) => {
+    mapDeep(rules, (value: Rule, key: string) => {
       results[key] = _.isFunction(value) ? value(getter) : getter(value as Path);
     });
     return results;
