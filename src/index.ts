@@ -2,34 +2,53 @@
 
 import * as _ from 'lodash';
 
-export interface IRules {
-  [key: string]: ((record: any) => any) | string;
+// Define JSON interface.
+
+type JSONPrimitive = number | boolean | string | null;
+type JSONValue = JSONPrimitive | IJSONArray | IJSONRecord;
+
+interface IJSONArray extends Array<JSONValue> {}
+
+export interface IJSONRecord {
+  [key: string]: JSONValue;
 }
 
-export default class Tform {
-  public static transform(rules: IRules, record: any) {
-    const results: any = {};
-    const mappedRules = new Map(_.toPairs(rules));
-    const wrappedRecord = new WrappedRecord(record);
-    mappedRules.forEach((value, key) => {
-      _.isFunction(value) ? (results[key] = value(wrappedRecord)) : (results[key] = wrappedRecord.get(value));
-    });
-    return results;
-  }
+// Enable retrieval of properties.
+
+type Path = string | string[]; // properties to access on object
+type Getter = ((path?: Path) => JSONValue); // TODO: add default argument
+
+type Rule = Path | ((getter: Getter) => JSONValue) | IRules;
+
+export interface IRules {
+  [key: string]: Rule;
 }
+
+export const get = _.get;
+
+function getterFactory(record: IJSONRecord): Getter {
+  function getter(path?: Path): JSONValue {
+    if (path === undefined) {
+      return record;
+    }
+    return _.get(record, path);
+  }
+
+  return getter;
+}
+
+// Expose main functionality.
 
 // tslint:disable-next-line:max-classes-per-file
-class WrappedRecord {
-  private _record: WrappedRecord;
-  constructor(record: any) {
-    this._record = record;
-  }
+export default class Tform {
+  public static transform(rules: IRules, record: IJSONRecord): IJSONRecord {
+    const getter: Getter = getterFactory(record);
+    const results: IJSONRecord = {};
 
-  public get(path: any): string | undefined {
-    return _.get(this._record, path, undefined);
-  }
-
-  public getTrim(path: any): string | undefined {
-    return _.get(this._record, path, undefined) ? _.get(this._record, path, '').trim() : undefined;
+    const mappedRules = new Map(_.toPairs(rules));
+    mappedRules.forEach((value, key) => {
+      results[key] = _.isFunction(value) ? value(getter) : getter(value as Path);
+    });
+    return results;
   }
 }
