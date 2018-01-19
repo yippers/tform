@@ -53,5 +53,9 @@
     "printWidth": 120,
     "singleQuote": true,
     "trailingComma": "all"
+  },
+  "dependencies": {
+    "@types/lodash": "^4.14.92",
+    "lodash": "^4.17.4"
   }
 }
