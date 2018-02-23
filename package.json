@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "Generalized record transformation framework",
   "main": "build/index.js",
+  "typings": "build/index.js",
   "license": "Apache-2.0",
   "repository": "github:rimeto/tform",
   "scripts": {
     "clean": "rm -rf build node_modules",
-    "build": "tsc",
+    "build": "tsc --declaration",
     "lint": "tslint -c ./tslint.json src/**/*.ts",
     "precommit": "lint-staged",
     "test": "jest",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/jest": "^21.1.8",
+    "@types/node": "^9.4.6",
     "husky": "^0.14.3",
     "jest": "^22.0.3",
     "lint-staged": "^6.0.0",

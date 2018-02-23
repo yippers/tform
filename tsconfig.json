@@ -20,7 +20,8 @@
   "filesGlob": ["src/**/*.ts"],
 
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "build"
   ],
 
   "compileOnSave": false

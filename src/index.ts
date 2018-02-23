@@ -73,7 +73,7 @@ export class Tform {
   private errors: ITformError[] = [];
   private count: number = 0;
 
-  constructor(private rules: IRules, private recordId?: Path) {}
+  constructor(private rules: IRules, private recordIdKey?: Path) {}
 
   public apply(record: IJSONRecord): IJSONRecord {
     const results: IJSONRecord = {};
@@ -116,12 +116,12 @@ export class Tform {
   // }
 
   private extractID(record: IJSONRecord, getter: Getter) {
-    if (this.recordId === undefined) {
+    if (this.recordIdKey === undefined) {
       return undefined;
     }
 
     try {
-      return getter(this.recordId);
+      return getter(this.recordIdKey);
     } catch (e) {
       this.errors.push({
         error: e,
