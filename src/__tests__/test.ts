@@ -1,16 +1,26 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
-import Tform, { get, IJSONRecord, IRules } from '../index';
+import { filterFalse, get, IJSONRecord, IRules, splitList, Tform } from '../index';
 
 // Helper for tests below.
 function testTform(description: string, record: IJSONRecord, rules: IRules, expected: IJSONRecord): void {
   test(description, () => {
-    expect(Tform.transform(rules, record)).toEqual(expected);
+    const tform: Tform = new Tform(rules);
+    const output = tform.apply(record);
+    expect(tform.getErrors()).toEqual([]);
+    expect(output).toEqual(expected);
   });
 }
 
 // tslint:disable:object-literal-sort-keys
 describe('tform', () => {
+  // function fakeprint(object: any): void {
+  //   test('fake test', () => {
+  //     expect(object).toBe('');
+  //   });
+  // }
+  // fakeprint(typeof ([''] as string[]));
+
   testTform(
     'typing sanity check',
     {
@@ -28,23 +38,26 @@ describe('tform', () => {
   );
 
   testTform(
-    'static properties',
+    'static values',
     {
-      sex: 'male',
+      age: 'idk',
+      location: 'idk',
+    },
+    {
+      age: 50,
+      location: null,
       name: {
         first: 'John',
         last: 'Doe',
       },
     },
     {
-      string: 'sex',
-      string_dotted: 'name.first',
-      string_array: ['name', 'last'],
-    },
-    {
-      string: 'male',
-      string_dotted: 'John',
-      string_array: 'Doe',
+      age: 50,
+      location: null,
+      name: {
+        first: 'John',
+        last: 'Doe',
+      },
     },
   );
 
@@ -56,20 +69,22 @@ describe('tform', () => {
       subfield: 'name',
     },
     {
-      dynamic: (g) => g('first.name'),
-      dynamic_complex: (g) => g(['first', g('subfield') as string]),
-      dynamic_nested: (g) => get(g('last'), g('subfield') as string),
-      entire_record: (g) => g(),
+      dynamic: ($) => $('first.name'),
+      dynamic_complex: ($) => $(['first', $('subfield') as string]),
+      dynamic_nested: ($) => get($('last'), $('subfield') as string),
+      defaultValue: ($) => $('color', 'yellow'),
+      // entire_record: (getter) => getter(),
     },
     {
       dynamic: 'John',
       dynamic_complex: 'John',
       dynamic_nested: 'Doe',
-      entire_record: {
-        first: { name: 'John' },
-        last: { name: 'Doe' },
-        subfield: 'name',
-      },
+      defaultValue: 'yellow',
+      // entire_record: {
+      //   first: { name: 'John' },
+      //   last: { name: 'Doe' },
+      //   subfield: 'name',
+      // },
     },
   );
 
@@ -80,10 +95,10 @@ describe('tform', () => {
       last: 'Doe',
     },
     {
-      array: (g) => [g('first'), g('last')],
-      map: (g) => ({
-        given: g('first'),
-        family: g('last'),
+      array: ($) => [$('first'), $('last')],
+      map: ($) => ({
+        given: $('first'),
+        family: $('last'),
       }),
     },
     {
@@ -95,23 +110,107 @@ describe('tform', () => {
     },
   );
 
+  test('basic error handling', () => {
+    const rules: IRules = {
+      function_missing_path: ($) => $('bar'),
+      function_error: () => {
+        throw Error('oh noes!');
+      },
+    };
+    const record1: IJSONRecord = {};
+    const record2: IJSONRecord = { bar: 'bar' };
+
+    const tform: Tform = new Tform(rules);
+    expect(tform.apply(record1)).toEqual({});
+    expect(tform.apply(record2)).toEqual({
+      function_missing_path: 'bar',
+    });
+    expect(tform.getErrors()).toEqual([
+      {
+        error: Error('property not found: bar'),
+        field: 'function_missing_path',
+        record_no: 1,
+        record_id: undefined,
+        record_raw: {},
+      },
+      { error: Error('oh noes!'), field: 'function_error', record_no: 1, record_id: undefined, record_raw: {} },
+      {
+        error: Error('oh noes!'),
+        field: 'function_error',
+        record_no: 2,
+        record_id: undefined,
+        record_raw: { bar: 'bar' },
+      },
+    ]);
+  });
+
+  test('error reporting of record id', () => {
+    const rules: IRules = { whoops: ($) => $('missing') };
+    const record1: IJSONRecord = { pk: 1 };
+    const record2: IJSONRecord = {};
+
+    const tform: Tform = new Tform(rules, 'pk');
+    expect(tform.apply(record1)).toEqual({});
+    expect(tform.apply(record2)).toEqual({});
+    expect(tform.getErrors()).toEqual([
+      {
+        error: Error('property not found: missing'),
+        field: 'whoops',
+        record_no: 1,
+        record_id: 1,
+        record_raw: record1,
+      },
+      {
+        error: Error('property not found: pk'),
+        record_no: 2,
+        record_id: undefined,
+        record_raw: record2,
+      },
+      {
+        error: Error('property not found: missing'),
+        field: 'whoops',
+        record_no: 2,
+        record_id: undefined,
+        record_raw: record2,
+      },
+    ]);
+  });
+
   testTform(
-    'deep remapping',
+    'core utility functions',
     {
-      hometown: 'San Francisco',
-      country: 'United States',
+      a1: 'a1',
+      a2: 'a2',
+      b1: '',
+      list: 'a, b, ,, c,',
     },
     {
-      address: {
-        city: 'hometown',
-        country: 'country',
-      },
+      filterFalse: ($) => filterFalse($, ['a1', 'a2', 'b1', 'b2']),
+      delimitedList: ($) => splitList($('list')),
     },
     {
-      address: {
-        city: 'San Francisco',
-        country: 'United States',
-      },
+      filterFalse: ['a1', 'a2'],
+      delimitedList: ['a', 'b', 'c'],
     },
   );
+
+  // testTform(
+  //   'deep remapping',
+  //   {
+  //     hometown: 'San Francisco',
+  //     country: 'United States',
+  //   },
+  //   {
+  //     address: {
+  //       city: 'hometown',
+  //       country: 'country',
+  //     },
+  //   },
+  //   {
+  //     address: {
+  //       city: 'San Francisco',
+  //       country: 'United States',
+  //     },
+  //   },
+  // );
 });
