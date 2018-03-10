@@ -1,3 +1,6 @@
+# Temporarary directory
+/src/tmp
+
 # Logs
 logs
 *.log
