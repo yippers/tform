@@ -1,6 +1,7 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
 import * as _ from 'lodash';
+import { type } from 'os';
 
 export * from './deserializer';
 export * from './utility';
@@ -16,50 +17,18 @@ export interface IJSONRecord {
   [key: string]: JSONValue;
 }
 
-// Enable retrieval of properties.
-
-export type Path = string;
-export type Getter = ((path: Path | Path[], defaultValue?: JSONValue) => JSONValue);
-export type Rule = JSONValue | ((getter: Getter) => JSONValue) | IRules;
-
-export interface IRules {
-  [key: string]: Rule;
-}
-
-export const get = _.get;
-
-// Create function for a record that accepts a property name and fetches that property value
-function getterFactory(record: IJSONRecord): Getter {
-  // TODO: Implement 'untrimmed' arg
-
-  function getter(path?: Path | Path[], defaultValue?: JSONValue): JSONValue {
-    if (path === undefined) {
-      return record;
-    }
-
-    let value = get(record, path);
-    if (_.isString(value)) {
-      value = value.trim();
-    }
-    if (value === undefined && defaultValue !== undefined) {
-      value = defaultValue;
-    }
-
-    if (value === undefined) {
-      throw Error('property not found: ' + path);
-    } else if (value === null) {
-      throw Error('property is null: ' + path);
-    }
-
-    return value;
-  }
-
-  return getter;
+function isPrimitive(obj: any): obj is JSONPrimitive {
+  return ['string', 'number', 'boolean'].indexOf(obj) >= 0 || obj === null;
 }
 
 // Primary interfaces and classes.
 
-// tslint:disable:object-literal-sort-keys
+export type Rule<Record> = JSONPrimitive | ((record: Record) => any) | IRules<Record>;
+
+export interface IRules<Record> {
+  [key: string]: Rule<Record>;
+}
+
 export interface ITformError {
   error: Error;
   field?: string;
@@ -69,31 +38,48 @@ export interface ITformError {
   record_id?: JSONValue;
 }
 
-export class Tform {
+// tslint:disable:member-ordering
+export class Tform<Record> {
   private errors: ITformError[] = [];
-  private count: number = 0;
+  private recordCount: number = 0;
 
-  constructor(private rules: IRules, private recordIdKey?: Path) {}
+  constructor(private rules: IRules<Record>, private idKey?: string) {}
 
-  public apply(record: IJSONRecord): IJSONRecord {
-    const results: IJSONRecord = {};
-    const getter: Getter = getterFactory(record);
-    this.count += 1;
+  private processRules(rules: IRules<Record>, results: any, record: IJSONRecord) {
+    Object.keys(rules).forEach((key: string) => {
+      const rule: Rule<Record> = rules[key];
 
-    Object.keys(this.rules).forEach((key: string) => {
-      const rule: Rule = this.rules[key];
       try {
-        results[key] = _.isFunction(rule) ? rule(getter) : rule;
+        if (isPrimitive(rule)) {
+          results[key] = rule;
+        } else if (_.isFunction(rule)) {
+          results[key] = rule(record);
+        } else {
+          // IRules
+          results[key] = {};
+          this.processRules(rule as IRules<Record>, results[key], record);
+        }
+
+        if (results[key] === undefined) {
+          // noinspection ExceptionCaughtLocallyJS
+          throw Error(`property '${key}' of result is undefined`);
+        }
+
+        if (_.isString(results[key])) {
+          results[key] = results[key].trim();
+        }
       } catch (e) {
-        this.errors.push({
-          error: e,
-          record_no: this.count,
-          record_id: this.extractID(record, getter),
-          record_raw: record,
-          field: key,
-        });
+        this.addError(e, record, key);
       }
     });
+  }
+
+  public apply(record: IJSONRecord): IJSONRecord {
+    this.recordCount += 1;
+    this.checkID(record);
+
+    const results: IJSONRecord = {};
+    this.processRules(this.rules, results, record);
     return results;
   }
 
@@ -115,19 +101,24 @@ export class Tform {
   // public logError(Error: error): void {
   // }
 
-  private extractID(record: IJSONRecord, getter: Getter) {
-    if (this.recordIdKey === undefined) {
-      return undefined;
-    }
+  private addError(error: Error, record: IJSONRecord, field?: string) {
+    this.errors.push({
+      error,
+      field,
 
-    try {
-      return getter(this.recordIdKey);
-    } catch (e) {
-      this.errors.push({
-        error: e,
-        record_no: this.count,
-        record_raw: record,
-      });
+      record_no: this.recordCount,
+      record_raw: record,
+      record_id: this.extractID(record),
+    });
+  }
+
+  private checkID(record: IJSONRecord) {
+    if (this.idKey && !record[this.idKey]) {
+      this.addError(TypeError(`Missing ID key '${this.idKey}'`), record);
     }
+  }
+
+  private extractID(record: IJSONRecord) {
+    return this.idKey && record[this.idKey];
   }
 }
