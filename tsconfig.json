@@ -6,7 +6,8 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "noEmitOnError": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "outDir": "build",
     "preserveConstEnums": true,
     "pretty": true,
@@ -14,7 +15,8 @@
     "rootDir": "src",
     "sourceMap": true,
     "strict": true,
-    "target": "es6"
+    "target": "es6",
+    "emitDecoratorMetadata": true,
   },
 
   "filesGlob": ["src/**/*.ts"],
