@@ -24,7 +24,7 @@ describe('tform', () => {
     const record = {
       job: 'Engineer ',
       name: 'John Doe',
-      hobbies: 'Biking; Skating;;',
+      hobbies: 'Biking, Skating,,',
       address: {
         home: {
           city: 'Cupertino',
@@ -41,7 +41,7 @@ describe('tform', () => {
         last: (X) => X.name().split(' ')[1],
       },
       age: (X) => X.age(-1), // test falling back to default value
-      hobbies: (X) => splitList(X.hobbies()), // test utility method `splitList`
+      hobbies: (X) => splitList(',', X.hobbies()), // test utility method `splitList`
       city: {
         home: (X) =>
           X.address()
