@@ -16,7 +16,7 @@
     "sourceMap": true,
     "strict": true,
     "target": "es6",
-    "emitDecoratorMetadata": true,
+    "emitDecoratorMetadata": true
   },
 
   "filesGlob": ["src/**/*.ts"],

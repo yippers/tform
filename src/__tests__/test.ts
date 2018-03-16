@@ -1,10 +1,9 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
-import { Defaultable, IJSONRecord, IRules, IRulesPublic, splitList, Tform } from '../index';
+import { IJSONRecord, IRules, splitList, Tform } from '../index';
 
 describe('tform', () => {
   test('basic transforming', () => {
-    // Optional values not supported.
     interface IPerson {
       job: string;
       name: string;
@@ -17,25 +16,25 @@ describe('tform', () => {
     }
 
     const record = {
-      // job: 'Engineer ',
+      job: 'Engineer ',
       name: 'John Doe',
       hobbies: 'Biking, Skating,,',
-      // address: {
-      //   city: 'Cupertino',
-      //   zip: null,
-      // },
+      address: {
+        city: 'Cupertino',
+        zip: null,
+      },
     };
 
-    const rules: IRulesPublic<IPerson> = {
-      job: (X) => X.job(),
+    const rules: IRules<IPerson> = {
+      job: (X) => X.job(), // test simply accessing attributes
       name: {
-        first: (X) => X.name().split(' ')[0],
+        first: (X) => X.name().split(' ')[0], // test type-checking on attributes
         last: (X) => X.name().split(' ')[1],
       },
-      age: (X) => X.age(-1),
-      hobbies: (X) => splitList(X.hobbies()),
+      age: (X) => X.age(-1), // test falling back to default value
+      hobbies: (X) => splitList(X.hobbies()), // test utility method `splitList`
       address: {
-        city: (X) => X.address().city,
+        city: (X) => X.address().city, // test accessing nested properties
         zip: (X) => X.address().zip,
       },
     };
@@ -55,7 +54,7 @@ describe('tform', () => {
     };
 
     const tform = new Tform<IPerson>(rules);
-    const output = tform.apply(record);
+    const output = tform.transform(record);
     expect(output).toEqual(expected);
   });
 
@@ -71,8 +70,8 @@ describe('tform', () => {
     const record2: IJSONRecord = {};
 
     const tform = new Tform(rules);
-    expect(tform.apply(record1)).toEqual({ missing: 1 });
-    expect(tform.apply(record2)).toEqual({ missing: undefined });
+    expect(tform.transform(record1)).toEqual({ missing: 1 });
+    expect(tform.transform(record2)).toEqual({ missing: undefined });
 
     expect(tform.getErrors()).toEqual([
       {
@@ -107,8 +106,8 @@ describe('tform', () => {
     const record2 = {};
 
     const tform = new Tform(rules, 'pk');
-    expect(tform.apply(record1)).toEqual({});
-    expect(tform.apply(record2)).toEqual({});
+    expect(tform.transform(record1)).toEqual({});
+    expect(tform.transform(record2)).toEqual({});
     expect(tform.getErrors()).toEqual([
       {
         error: Error("property 'missing' of result is undefined"),
