@@ -17,12 +17,12 @@ export interface IJSONRecord {
 }
 
 function isPrimitive(obj: any): obj is JSONPrimitive {
-  return ['string', 'number', 'boolean'].indexOf(obj) >= 0 || obj === null;
+  return obj === null || obj === undefined || ['string', 'number', 'boolean'].indexOf(typeof obj) >= 0;
 }
 
 // Define rules interface.
 
-export type Rule<Record> = JSONPrimitive | ((record: Record) => any) | IRulesInternal<Record>;
+export type Rule<Record> = ((record: Record) => any) | IRulesInternal<Record>;
 
 // Internal definition of IRules, not wrapped with `Defaultable`.
 export interface IRulesInternal<Record> {
@@ -30,17 +30,20 @@ export interface IRulesInternal<Record> {
 }
 
 // Given a record, convert properties to methods that optionally take a fallback value.
+// Note: Nested non-primitive properties are converted too.
 function wrapRecord<Record extends object, Key extends keyof Record>(record: Record) {
   return new Proxy(record, {
     get(target: Record, name: Key): (fallback?: any) => Key {
-      const value = target[name];
-      return (fallback: any) => (value !== undefined ? value : fallback);
+      return (fallback: any) => {
+        const returnValue = target[name] !== undefined ? target[name] : fallback;
+        return isPrimitive(returnValue) ? returnValue : wrapRecord(returnValue);
+      };
     },
   });
 }
 
 // Convert record into wrapped version as per `wrapRecord`.
-export type Defaultable<Record> = { [key in keyof Record]: (fallback?: any) => Record[key] };
+export type Defaultable<Record> = { [key in keyof Record]: (fallback?: any) => Defaultable<Record[key]> };
 
 // IRules wrapped by `Defaultable` suitable for public use.
 export type IRules<Record> = IRulesInternal<Defaultable<Record>>;
@@ -63,20 +66,19 @@ export class Tform<Record> {
 
   constructor(private rules: IRules<Record>, private idKey?: string) {}
 
-  // Transformation methods.
+  // region Transformation methods.
 
   private processRules(rules: IRules<Record>, results: any, record: IJSONRecord) {
     Object.keys(rules).forEach((key: string) => {
       const rule = rules[key];
 
       try {
-        if (isPrimitive(rule)) {
-          results[key] = rule;
-        } else if (_.isFunction(rule)) {
-          const wrappedRecord = wrapRecord<Record & object, keyof Record>(record as any);
+        if (_.isFunction(rule)) {
+          // If the rule is function, wrap record and pass as an argument.
+          const wrappedRecord = wrapRecord(record as any);
           results[key] = (rule as any)(wrappedRecord);
         } else {
-          // case where `rule` is actually nested `IRules`
+          // Otherwise, the rule is a nested map of rules.
           results[key] = {};
           this.processRules(rule as IRules<Record>, results[key], record);
         }
@@ -104,7 +106,9 @@ export class Tform<Record> {
     return results;
   }
 
-  // Error-handling methods.
+  // endregion
+
+  // region Error-handling methods.
 
   public getErrors(): ITformError[] {
     return this.errors;
@@ -130,4 +134,6 @@ export class Tform<Record> {
       record_id: this.extractID(record),
     });
   }
+
+  // endregion
 }

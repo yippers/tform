@@ -10,8 +10,14 @@ describe('tform', () => {
       age: number;
       hobbies: string;
       address: {
-        city: string;
-        zip: number;
+        home: {
+          city: string;
+          zip: number;
+        };
+        work: {
+          city: string;
+          zip: number;
+        };
       };
     }
 
@@ -20,22 +26,33 @@ describe('tform', () => {
       name: 'John Doe',
       hobbies: 'Biking; Skating;;',
       address: {
-        city: 'Cupertino',
-        zip: null,
+        home: {
+          city: 'Cupertino',
+          zip: null,
+        },
       },
     };
 
     const rules: IRules<IPerson> = {
       job: (X) => X.job(), // test simply accessing attributes
       name: {
+        // test deep rules
         first: (X) => X.name().split(' ')[0], // test type-checking on attributes
         last: (X) => X.name().split(' ')[1],
       },
       age: (X) => X.age(-1), // test falling back to default value
       hobbies: (X) => splitList(X.hobbies()), // test utility method `splitList`
-      address: {
-        city: (X) => X.address().city, // test accessing nested properties
-        zip: (X) => X.address().zip,
+      city: {
+        home: (X) =>
+          X.address()
+            .home({})
+            .city('')
+            .toLowerCase(), // test accessing nested properties
+        work: (X) =>
+          X.address()
+            .work({})
+            .city('Unknown')
+            .toLowerCase(), // demonstrate nesting with defaults
       },
     };
 
@@ -47,9 +64,9 @@ describe('tform', () => {
       },
       age: -1,
       hobbies: ['Biking', 'Skating'],
-      address: {
-        city: 'Cupertino',
-        zip: null,
+      city: {
+        home: 'cupertino',
+        work: 'unknown',
       },
     };
 

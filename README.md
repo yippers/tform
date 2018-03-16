@@ -35,16 +35,16 @@ Transformation state does not persist between records. Tform works well as a pre
 1. Use the instance to transform records
  
 
-    interface IPerson {
-      ...
-    }
-
-    const record = ...;
-
-    const rules: IRules<IPerson> = ...;
-
-    const tform = new Tform<IPerson>(rules);
-    const output = tform.transform(record);
+        interface IPerson {
+          ...
+        }
+    
+        const record = ...;
+    
+        const rules: IRules<IPerson> = ...;
+    
+        const tform = new Tform<IPerson>(rules);
+        const output = tform.transform(record);
     
     
 If you prefer rules to not be type-checked, you can avoid defining an interface for your input JSON and replace `IRules<YourInterface>` with `IRules<any>`.
@@ -56,7 +56,7 @@ To transform records, you define some rules as map/dictionary. Each rule is a fu
 
 If the input record does not define property `foo`, tform logs an error (see exception handling below). Optionally, you can provide a default value as so: `X.foo('default_value')`.   
 
-Rules do not have to be flat; they can be nested. Also note that if a rule has a primitive as its value (like `42` or `'hello'`), then the value is returned unmodified.
+Rules do not have to be flat; they can be nested.
 
 
 ## Extending Tform
