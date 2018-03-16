@@ -1,41 +1,42 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
-import { IJSONRecord, IRules, splitList, Tform } from '../index';
+import { Defaultable, IJSONRecord, IRules, IRulesPublic, splitList, Tform } from '../index';
 
 describe('tform', () => {
   test('basic transforming', () => {
+    // Optional values not supported.
     interface IPerson {
       job: string;
       name: string;
-      age?: number;
+      age: number;
       hobbies: string;
       address: {
-        city?: string;
+        city: string;
         zip: number;
       };
     }
 
     const record = {
-      job: 'Engineer ',
+      // job: 'Engineer ',
       name: 'John Doe',
       hobbies: 'Biking, Skating,,',
-      address: {
-        city: 'Cupertino',
-        zip: null,
-      },
+      // address: {
+      //   city: 'Cupertino',
+      //   zip: null,
+      // },
     };
 
-    const rules: IRules<IPerson> = {
-      job: (X) => X.job,
+    const rules: IRulesPublic<IPerson> = {
+      job: (X) => X.job(),
       name: {
-        first: (X) => X.name.split(' ')[0],
-        last: (X) => X.name.split(' ')[1],
+        first: (X) => X.name().split(' ')[0],
+        last: (X) => X.name().split(' ')[1],
       },
-      age: (X) => X.age || -1,
-      hobbies: (X) => splitList(X.hobbies),
+      age: (X) => X.age(-1),
+      hobbies: (X) => splitList(X.hobbies()),
       address: {
-        city: (X) => X.address.city || '',
-        zip: (X) => X.address.zip,
+        city: (X) => X.address().city,
+        zip: (X) => X.address().zip,
       },
     };
 
@@ -63,7 +64,7 @@ describe('tform', () => {
       error: () => {
         throw Error('oh noes!');
       },
-      missing: (X) => X.foo,
+      missing: (X) => X.foo(),
     };
 
     const record1: IJSONRecord = { foo: 1 };
@@ -100,7 +101,7 @@ describe('tform', () => {
 
   test('error reporting of record id', () => {
     const rules: IRules<any> = {
-      missing: (X) => X.foo,
+      missing: (X) => X.foo(),
     };
     const record1 = { pk: 1 };
     const record2 = {};

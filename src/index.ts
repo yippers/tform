@@ -29,6 +29,42 @@ export interface IRules<Record> {
   [key: string]: Rule<Record>;
 }
 
+export type IRulesPublic<Record> = IRules<Defaultable<Record>>;
+
+export type Defaultable<Record> = { [key in keyof Record]: (fallback?: any) => Record[key] };
+
+function defaultFromType(value: any) {
+  switch (typeof value) {
+    case 'string':
+      return '';
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'object':
+      return {};
+    default:
+      return undefined;
+  }
+}
+
+function wrapRecord<Record extends object, Key extends keyof Record>(record: Record) {
+  return new Proxy(record, {
+    get(target: Record, name: Key): (fallback?: any) => Key {
+      const value = target[name];
+      return (fallback?: any) => {
+        if (value !== undefined) {
+          return value;
+        } else if (fallback !== undefined) {
+          return fallback;
+        } else {
+          return defaultFromType(value);
+        }
+      };
+    },
+  });
+}
+
 export interface ITformError {
   error: Error;
   field?: string;
@@ -43,21 +79,21 @@ export class Tform<Record> {
   private errors: ITformError[] = [];
   private recordCount: number = 0;
 
-  constructor(private rules: IRules<Record>, private idKey?: string) {}
+  constructor(private rules: IRulesPublic<Record>, private idKey?: string) {}
 
-  private processRules(rules: IRules<Record>, results: any, record: IJSONRecord) {
+  private processRules(rules: IRulesPublic<Record>, results: any, record: IJSONRecord) {
     Object.keys(rules).forEach((key: string) => {
-      const rule: Rule<Record> = rules[key];
+      const rule = rules[key];
 
       try {
         if (isPrimitive(rule)) {
           results[key] = rule;
         } else if (_.isFunction(rule)) {
-          results[key] = rule(record);
+          results[key] = rule(wrapRecord<Record & object, keyof Record>(record as any));
         } else {
-          // IRules
+          // if (rule is nested IRules)
           results[key] = {};
-          this.processRules(rule as IRules<Record>, results[key], record);
+          this.processRules(rule as IRulesPublic<Record>, results[key], record);
         }
 
         if (results[key] === undefined) {
