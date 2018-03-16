@@ -74,7 +74,7 @@ export class Tform<Record> {
           results[key] = rule;
         } else if (_.isFunction(rule)) {
           const wrappedRecord = wrapRecord<Record & object, keyof Record>(record as any);
-          results[key] = rule(wrappedRecord);
+          results[key] = (rule as any)(wrappedRecord);
         } else {
           // case where `rule` is actually nested `IRules`
           results[key] = {};
