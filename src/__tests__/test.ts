@@ -18,7 +18,7 @@ describe('tform', () => {
     const record = {
       job: 'Engineer ',
       name: 'John Doe',
-      hobbies: 'Biking, Skating,,',
+      hobbies: 'Biking; Skating;;',
       address: {
         city: 'Cupertino',
         zip: null,
