@@ -1,6 +1,7 @@
 {
   "extends": ["tslint:latest"],
   "rules": {
+    "object-literal-sort-keys": false,
     "file-header": [true, "Copyright \\(C\\) 20\\d{2} Rimeto, LLC. All Rights Reserved."],
     "indent": [true, "spaces", 2],
     "max-line-length": false,
@@ -13,6 +14,7 @@
       }
     ],
     "quotemark": [true, "single", "avoid-escape"],
+    "no-console": false,
     "variable-name": [
       true,
       "ban-keywords",

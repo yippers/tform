@@ -1,216 +1,150 @@
 // Copyright (C) 2018 Rimeto, LLC. All Rights Reserved.
 
-import { filterFalse, get, IJSONRecord, IRules, splitList, Tform } from '../index';
+import { IJSONRecord, IRules, splitList, Tform } from '../index';
 
-// Helper for tests below.
-function testTform(description: string, record: IJSONRecord, rules: IRules, expected: IJSONRecord): void {
-  test(description, () => {
-    const tform: Tform = new Tform(rules);
-    const output = tform.apply(record);
-    expect(tform.getErrors()).toEqual([]);
-    expect(output).toEqual(expected);
-  });
-}
-
-// tslint:disable:object-literal-sort-keys
 describe('tform', () => {
-  // function fakeprint(object: any): void {
-  //   test('fake test', () => {
-  //     expect(object).toBe('');
-  //   });
-  // }
-  // fakeprint(typeof ([''] as string[]));
+  test('basic transforming', () => {
+    interface IPerson {
+      job: string;
+      name: string;
+      age: number;
+      hobbies: string;
+      address: {
+        home: {
+          city: string;
+          zip: number;
+        };
+        work: {
+          city: string;
+          zip: number;
+        };
+      };
+    }
 
-  testTform(
-    'typing sanity check',
-    {
-      string: 'string',
-      boolean: true,
-      number: 0.5,
-      array: [1, 2, 3],
-      map: {
-        depth: 'much',
-        wow: 'very',
-      },
-    },
-    {},
-    {},
-  );
-
-  testTform(
-    'static values',
-    {
-      age: 'idk',
-      location: 'idk',
-    },
-    {
-      age: 50,
-      location: null,
-      name: {
-        first: 'John',
-        last: 'Doe',
-      },
-    },
-    {
-      age: 50,
-      location: null,
-      name: {
-        first: 'John',
-        last: 'Doe',
-      },
-    },
-  );
-
-  testTform(
-    'dynamic properties',
-    {
-      first: { name: 'John' },
-      last: { name: 'Doe' },
-      subfield: 'name',
-    },
-    {
-      dynamic: ($) => $('first.name'),
-      dynamic_complex: ($) => $(['first', $('subfield') as string]),
-      dynamic_nested: ($) => get($('last'), $('subfield') as string),
-      defaultValue: ($) => $('color', 'yellow'),
-      // entire_record: (getter) => getter(),
-    },
-    {
-      dynamic: 'John',
-      dynamic_complex: 'John',
-      dynamic_nested: 'Doe',
-      defaultValue: 'yellow',
-      // entire_record: {
-      //   first: { name: 'John' },
-      //   last: { name: 'Doe' },
-      //   subfield: 'name',
-      // },
-    },
-  );
-
-  testTform(
-    'complex return types for rules',
-    {
-      first: 'John',
-      last: 'Doe',
-    },
-    {
-      array: ($) => [$('first'), $('last')],
-      map: ($) => ({
-        given: $('first'),
-        family: $('last'),
-      }),
-    },
-    {
-      array: ['John', 'Doe'],
-      map: {
-        given: 'John',
-        family: 'Doe',
-      },
-    },
-  );
-
-  test('basic error handling', () => {
-    const rules: IRules = {
-      function_missing_path: ($) => $('bar'),
-      function_error: () => {
-        throw Error('oh noes!');
+    const record = {
+      job: 'Engineer ',
+      name: 'John Doe',
+      hobbies: 'Biking, Skating,,',
+      address: {
+        home: {
+          city: 'Cupertino',
+          zip: null,
+        },
       },
     };
-    const record1: IJSONRecord = {};
-    const record2: IJSONRecord = { bar: 'bar' };
 
-    const tform: Tform = new Tform(rules);
-    expect(tform.apply(record1)).toEqual({});
-    expect(tform.apply(record2)).toEqual({
-      function_missing_path: 'bar',
-    });
+    const rules: IRules<IPerson> = {
+      job: (X) => X.job(), // test simply accessing attributes
+      name: {
+        // test deep rules
+        first: (X) => X.name().split(' ')[0], // test type-checking on attributes
+        last: (X) => X.name().split(' ')[1],
+      },
+      age: (X) => X.age(-1), // test falling back to default value
+      hobbies: (X) => splitList(',', X.hobbies()), // test utility method `splitList`
+      city: {
+        home: (X) =>
+          X.address()
+            .home({})
+            .city('')
+            .toLowerCase(), // test accessing nested properties
+        work: (X) =>
+          X.address()
+            .work({})
+            .city('Unknown')
+            .toLowerCase(), // demonstrate nesting with defaults
+      },
+    };
+
+    const expected = {
+      job: 'Engineer',
+      name: {
+        first: 'John',
+        last: 'Doe',
+      },
+      age: -1,
+      hobbies: ['Biking', 'Skating'],
+      city: {
+        home: 'cupertino',
+        work: 'unknown',
+      },
+    };
+
+    const tform = new Tform<IPerson>(rules);
+    const output = tform.transform(record);
+    expect(output).toEqual(expected);
+  });
+
+  test('basic error handling', () => {
+    const rules: IRules<any> = {
+      error: () => {
+        throw Error('oh noes!');
+      },
+      missing: (X) => X.foo(),
+    };
+
+    const record1: IJSONRecord = { foo: 1 };
+    const record2: IJSONRecord = {};
+
+    const tform = new Tform(rules);
+    expect(tform.transform(record1)).toEqual({ missing: 1 });
+    expect(tform.transform(record2)).toEqual({ missing: undefined });
+
     expect(tform.getErrors()).toEqual([
       {
-        error: Error('property not found: bar'),
-        field: 'function_missing_path',
-        record_no: 1,
+        error: Error('oh noes!'),
+        field: 'error',
         record_id: undefined,
-        record_raw: {},
+        record_no: 1,
+        record_raw: { foo: 1 },
       },
-      { error: Error('oh noes!'), field: 'function_error', record_no: 1, record_id: undefined, record_raw: {} },
       {
         error: Error('oh noes!'),
-        field: 'function_error',
-        record_no: 2,
+        field: 'error',
         record_id: undefined,
-        record_raw: { bar: 'bar' },
+        record_no: 2,
+        record_raw: {},
+      },
+      {
+        error: Error("property 'missing' of result is undefined"),
+        field: 'missing',
+        record_id: undefined,
+        record_no: 2,
+        record_raw: {},
       },
     ]);
   });
 
   test('error reporting of record id', () => {
-    const rules: IRules = { whoops: ($) => $('missing') };
-    const record1: IJSONRecord = { pk: 1 };
-    const record2: IJSONRecord = {};
+    const rules: IRules<any> = {
+      missing: (X) => X.foo(),
+    };
+    const record1 = { pk: 1 };
+    const record2 = {};
 
-    const tform: Tform = new Tform(rules, 'pk');
-    expect(tform.apply(record1)).toEqual({});
-    expect(tform.apply(record2)).toEqual({});
+    const tform = new Tform(rules, 'pk');
+    expect(tform.transform(record1)).toEqual({});
+    expect(tform.transform(record2)).toEqual({});
     expect(tform.getErrors()).toEqual([
       {
-        error: Error('property not found: missing'),
-        field: 'whoops',
-        record_no: 1,
+        error: Error("property 'missing' of result is undefined"),
+        field: 'missing',
         record_id: 1,
-        record_raw: record1,
+        record_no: 1,
+        record_raw: { pk: 1 },
       },
       {
-        error: Error('property not found: pk'),
+        error: TypeError("Missing ID key 'pk'"),
         record_no: 2,
-        record_id: undefined,
-        record_raw: record2,
+        record_raw: {},
       },
       {
-        error: Error('property not found: missing'),
-        field: 'whoops',
-        record_no: 2,
+        error: Error("property 'missing' of result is undefined"),
+        field: 'missing',
         record_id: undefined,
-        record_raw: record2,
+        record_no: 2,
+        record_raw: {},
       },
     ]);
   });
-
-  testTform(
-    'core utility functions',
-    {
-      a1: 'a1',
-      a2: 'a2',
-      b1: '',
-      list: 'a, b, ,, c,',
-    },
-    {
-      filterFalse: ($) => filterFalse($, ['a1', 'a2', 'b1', 'b2']),
-      delimitedList: ($) => splitList($('list')),
-    },
-    {
-      filterFalse: ['a1', 'a2'],
-      delimitedList: ['a', 'b', 'c'],
-    },
-  );
-
-  // testTform(
-  //   'deep remapping',
-  //   {
-  //     hometown: 'San Francisco',
-  //     country: 'United States',
-  //   },
-  //   {
-  //     address: {
-  //       city: 'hometown',
-  //       country: 'country',
-  //     },
-  //   },
-  //   {
-  //     address: {
-  //       city: 'San Francisco',
-  //       country: 'United States',
-  //     },
-  //   },
-  // );
 });

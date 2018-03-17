@@ -1,14 +1,14 @@
 {
   "name": "tform",
-  "version": "1.0.0",
-  "description": "Generalized record transformation framework",
+  "version": "0.2.3",
+  "description": "Transform JSON records easily",
   "main": "build/index.js",
   "typings": "build/index.js",
   "license": "Apache-2.0",
   "repository": "github:rimeto/tform",
   "scripts": {
     "clean": "rm -rf build node_modules",
-    "build": "tsc --declaration",
+    "build": "./node_modules/typescript/bin/tsc --declaration",
     "lint": "tslint -c ./tslint.json src/**/*.ts",
     "precommit": "lint-staged",
     "test": "jest",
@@ -23,11 +23,10 @@
     "prettier": "^1.9.2",
     "ts-jest": "^22.0.0",
     "tslint": "^5.8.0",
-    "typescript": "^2.6.2"
+    "typescript": "2.6.2"
   },
   "jest": {
     "collectCoverage": false,
-    "mapCoverage": true,
     "moduleFileExtensions": [
       "ts",
       "js"
@@ -35,7 +34,7 @@
     "roots": [
       "src/"
     ],
-    "testRegex": "/__tests__/.*$",
+    "testRegex": "/__tests__/(?!_).*$",
     "transform": {
       ".(ts|tsx)": "./node_modules/ts-jest/preprocessor.js"
     }
@@ -58,7 +57,10 @@
   },
   "dependencies": {
     "@types/lodash": "^4.14.92",
+    "@types/reflect-metadata": "^0.1.0",
+    "jsc": "^0.3.11",
     "lodash": "^4.17.4",
-    "map-keys-deep-lodash": "^1.0.1"
+    "npm": "^5.7.1",
+    "reflect-metadata": "^0.1.12"
   }
 }

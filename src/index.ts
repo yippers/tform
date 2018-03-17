@@ -16,118 +16,124 @@ export interface IJSONRecord {
   [key: string]: JSONValue;
 }
 
-// Enable retrieval of properties.
-
-export type Path = string;
-export type Getter = ((path: Path | Path[], defaultValue?: JSONValue) => JSONValue);
-export type Rule = JSONValue | ((getter: Getter) => JSONValue) | IRules;
-
-export interface IRules {
-  [key: string]: Rule;
+function isPrimitive(obj: any): obj is JSONPrimitive {
+  return obj === null || obj === undefined || ['string', 'number', 'boolean'].indexOf(typeof obj) >= 0;
 }
 
-export const get = _.get;
+// Define rules interface.
 
-// Create function for a record that accepts a property name and fetches that property value
-function getterFactory(record: IJSONRecord): Getter {
-  // TODO: Implement 'untrimmed' arg
+export type Rule<Record> = ((record: Record) => any) | IRulesInternal<Record>;
 
-  function getter(path?: Path | Path[], defaultValue?: JSONValue): JSONValue {
-    if (path === undefined) {
-      return record;
-    }
-
-    let value = get(record, path);
-    if (_.isString(value)) {
-      value = value.trim();
-    }
-    if (value === undefined && defaultValue !== undefined) {
-      value = defaultValue;
-    }
-
-    if (value === undefined) {
-      throw Error('property not found: ' + path);
-    } else if (value === null) {
-      throw Error('property is null: ' + path);
-    }
-
-    return value;
-  }
-
-  return getter;
+// Internal definition of IRules, not wrapped with `Defaultable`.
+export interface IRulesInternal<Record> {
+  [key: string]: Rule<Record>;
 }
 
-// Primary interfaces and classes.
+// Given a record, convert properties to methods that optionally take a fallback value.
+// Note: Nested non-primitive properties are converted too.
+function wrapRecord<Record extends object, Key extends keyof Record>(record: Record) {
+  return new Proxy(record, {
+    get(target: Record, name: Key): (fallback?: any) => Key {
+      return (fallback: any) => {
+        const returnValue = target[name] !== undefined ? target[name] : fallback;
+        return isPrimitive(returnValue) ? returnValue : wrapRecord(returnValue);
+      };
+    },
+  });
+}
 
-// tslint:disable:object-literal-sort-keys
+// Convert record into wrapped version as per `wrapRecord`.
+export type Defaultable<Record> = { [key in keyof Record]: (fallback?: any) => Defaultable<Record[key]> };
+
+// IRules wrapped by `Defaultable` suitable for public use.
+export type IRules<Record> = IRulesInternal<Defaultable<Record>>;
+
+// Define main classes.
+
 export interface ITformError {
   error: Error;
-  field?: string;
+  field?: string; // unset if record-level error instead of field-level error
 
   record_no: number;
   record_raw: IJSONRecord;
-  record_id?: JSONValue;
+  record_id?: JSONValue; // unset if no `idKey` provided to `Tform` instance
 }
 
-export class Tform {
+// tslint:disable:member-ordering
+export class Tform<Record> {
   private errors: ITformError[] = [];
-  private count: number = 0;
+  private recordCount: number = 0;
 
-  constructor(private rules: IRules, private recordIdKey?: Path) {}
+  constructor(private rules: IRules<Record>, private idKey?: string) {}
 
-  public apply(record: IJSONRecord): IJSONRecord {
-    const results: IJSONRecord = {};
-    const getter: Getter = getterFactory(record);
-    this.count += 1;
+  // region Transformation methods.
 
-    Object.keys(this.rules).forEach((key: string) => {
-      const rule: Rule = this.rules[key];
+  private processRules(rules: IRules<Record>, results: any, record: IJSONRecord) {
+    Object.keys(rules).forEach((key: string) => {
+      const rule = rules[key];
+
       try {
-        results[key] = _.isFunction(rule) ? rule(getter) : rule;
+        if (_.isFunction(rule)) {
+          // If the rule is function, wrap record and pass as an argument.
+          const wrappedRecord = wrapRecord(record as any);
+          results[key] = (rule as any)(wrappedRecord);
+        } else {
+          // Otherwise, the rule is a nested map of rules.
+          results[key] = {};
+          this.processRules(rule as IRules<Record>, results[key], record);
+        }
+
+        if (results[key] === undefined) {
+          // noinspection ExceptionCaughtLocallyJS
+          throw Error(`property '${key}' of result is undefined`);
+        }
+
+        if (_.isString(results[key])) {
+          results[key] = results[key].trim();
+        }
       } catch (e) {
-        this.errors.push({
-          error: e,
-          record_no: this.count,
-          record_id: this.extractID(record, getter),
-          record_raw: record,
-          field: key,
-        });
+        this.addError(e, record, key);
       }
     });
+  }
+
+  public transform(record: IJSONRecord): IJSONRecord {
+    this.recordCount += 1;
+    this.verifyHasID(record);
+
+    const results: IJSONRecord = {};
+    this.processRules(this.rules, results, record);
     return results;
   }
 
-  // TODO: Implement
-  // public batch(records: IJSONRecord[]): IJSONRecord[] {
-  // }
+  // endregion
 
-  // TODO: Implement
-  // public static value(rule: Rule, record: IJSONRecord): JSONValue {
-  //   const getter: Getter = getterFactory(record);
-  //   return Tform.helper(rule, getter);
-  // }
+  // region Error-handling methods.
 
   public getErrors(): ITformError[] {
     return this.errors;
   }
 
-  // TODO: Implement
-  // public logError(Error: error): void {
-  // }
-
-  private extractID(record: IJSONRecord, getter: Getter) {
-    if (this.recordIdKey === undefined) {
-      return undefined;
-    }
-
-    try {
-      return getter(this.recordIdKey);
-    } catch (e) {
-      this.errors.push({
-        error: e,
-        record_no: this.count,
-        record_raw: record,
-      });
+  private verifyHasID(record: IJSONRecord) {
+    if (this.idKey && !record[this.idKey]) {
+      this.addError(TypeError(`Missing ID key '${this.idKey}'`), record);
     }
   }
+
+  private extractID(record: IJSONRecord) {
+    return this.idKey ? record[this.idKey] : undefined;
+  }
+
+  private addError(error: Error, record: IJSONRecord, field?: string) {
+    this.errors.push({
+      error,
+      field,
+
+      record_no: this.recordCount,
+      record_raw: record,
+      record_id: this.extractID(record),
+    });
+  }
+
+  // endregion
 }

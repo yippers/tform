@@ -19,6 +19,7 @@ export function evalInContext(code: string, context: any = {}, opts: any = {}) {
   return sandbox[resultKey];
 }
 
+// TODO: Add unit test
 export function deserialize(rawRules: string, dependencies: string[] = []): any {
   let context: any = {};
 
